@@ -105,6 +105,7 @@ project/
 The free tier of Alpha Vantage API has the following limits:
 - 25 API calls per day
 - 5 calls per minute
+- Potentially 15 min delayed data
 
 Consider upgrading to a paid tier for production use.
 
