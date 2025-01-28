@@ -178,7 +178,7 @@ def stock_detail(symbol):
                          current_data=current_data)
 
 def update_charts():
-    # List of stocks to update
+    # List of stocks to update, pick any. LIMIT is 20 on the lowest paid API tier.
     stock_symbols = ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'WMT']
     update_current_month_data(stock_symbols)
     update_daily_price_history(stock_symbols)
