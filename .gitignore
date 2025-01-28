@@ -1,7 +1,7 @@
 # Config file with sensitive data
 config.py
 
-#Database
+# Database
 portfolio.db
 
 # Test Files
@@ -10,3 +10,6 @@ AAPL_intraday_current.json
 
 # Virtual Environment
 venv/
+
+# Python cache files
+__pycache__/
