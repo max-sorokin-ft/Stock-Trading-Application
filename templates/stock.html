@@ -1,0 +1,57 @@
+<!-- stock.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ symbol }} Stock Chart</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .chart-controls {
+            margin-bottom: 20px;
+        }
+        .chart-controls form {
+            display: flex;
+            gap: 15px;  /* Adds space between the dropdowns */
+            align-items: center;
+        }
+        select {
+            padding: 5px;
+            font-size: 16px;
+        }
+        #chart {
+            width: 100%;
+            height: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ symbol }} Stock Chart</h1>
+        
+        <div class="chart-controls">
+            <form method="GET">
+                <select name="period" onchange="this.form.submit()">
+                    <option value="1day" {% if period == '1day' %}selected{% endif %}>1 Day</option>
+                    <option value="1week" {% if period == '1week' %}selected{% endif %}>1 Week</option>
+                    <option value="1mo" {% if period == '1mo' %}selected{% endif %}>1 Month</option>
+                    <option value="3mo" {% if period == '3mo' %}selected{% endif %}>3 Months</option>
+                    <option value="6mo" {% if period == '6mo' %}selected{% endif %}>6 Months</option>
+                    <option value="1y" {% if period == '1y' %}selected{% endif %}>1 Year</option>
+                    <option value="5y" {% if period == '5y' %}selected{% endif %}>5 Years</option>
+                </select>
+            </form>
+        </div>
+
+        <div id="chart"></div>
+    </div>
+
+    <script>
+        var chartJson = {{ chart_json | safe }};
+        Plotly.newPlot('chart', chartJson.data, chartJson.layout);
+    </script>
+</body>
+</html>

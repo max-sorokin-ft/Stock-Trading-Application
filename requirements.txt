@@ -1,0 +1,10 @@
+flask
+pandas
+numpy
+sqlite3
+yfinance  # For fetching stock data
+requests  # For making HTTP requests
+python-dotenv  # For environment variables if needed
+plotly  # For interactive charts
+datetime
+## C7BD5G9YXC1JX14U
