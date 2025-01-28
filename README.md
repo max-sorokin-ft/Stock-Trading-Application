@@ -80,7 +80,7 @@ http://localhost:5000
 1. Enter a stock symbol in the search bar (e.g., AAPL for Apple)
 2. View the interactive price chart
 3. Use the dropdown menu to change the time period
-4. Data automatically updates every minute during market hours
+4. Data automatically updates every minute during market hours if you reload the page
 
 ## Project Structure
 ```
