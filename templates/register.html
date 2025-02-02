@@ -1,0 +1,32 @@
+<!-- register.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register - Stock Chart App</title>
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Register</h1>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST" class="auth-form">
+            <div>
+                <input type="text" name="username" placeholder="Username" required>
+            </div>
+            <div>
+                <input type="password" name="password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="submit-button">Register</button>
+        </form>
+        <div style="margin-top: 20px;">
+            <p>Already have an account? <a href="/login">Login here</a></p>
+        </div>
+    </div>
+</body>
+</html>

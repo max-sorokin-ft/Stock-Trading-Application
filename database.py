@@ -2,10 +2,11 @@
 # Handles all database operations including setup, updates, and queries
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from stock_data import process_current_stock_data, get_stock_data, process_intraday_price_history
 from apscheduler.schedulers.background import BackgroundScheduler 
 from time import sleep, time
+import pandas_market_calendars as mcal
 
 def create_connection():
     """Create a connection to the SQLite database"""
@@ -66,12 +67,11 @@ def create_tables():
     # Users table - stores user account information
     # Columns: id, username, password_hash, email, created_at
     cursor.execute('''
-    CREATE TABLE users(
+    CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     
@@ -175,7 +175,11 @@ def update_intraday_price_history(stock_symbols, month):
 
 def update_current_month_data(stock_symbols):
     """Update price history for current month for specified symbols"""
-    current_month = datetime.now().strftime('%Y-%m')
+    nyse = mcal.get_calendar('NYSE')
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=10)
+    valid_days = nyse.valid_days(start_date=start_date, end_date=end_date)
+    current_month = valid_days[-1].strftime('%Y-%m')
     update_intraday_price_history(stock_symbols, current_month)
 
 if __name__ == "__main__":

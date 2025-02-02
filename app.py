@@ -1,7 +1,9 @@
 # app.py - Main Flask application file
 # Handles routing, chart generation, and scheduled updates
 
-from flask import Flask, render_template, redirect, request, url_for
+from flask import Flask, render_template, redirect, url_for, request, flash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler  
 from datetime import datetime, timedelta, time
 from dateutil.relativedelta import relativedelta
@@ -10,9 +12,84 @@ import plotly.graph_objs as go
 import json
 from database import create_connection, update_current_stock_data, update_intraday_price_history, update_current_month_data
 from setup import update_daily_price_history
+import secrets
 
 # Initialize Flask application
 app = Flask(__name__)   
+app.config['SECRET_KEY'] = secrets.token_hex() 
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
+
+    @staticmethod
+    def get(user_id):
+        connection, cursor = create_connection()
+        cursor.execute('''SELECT * FROM users WHERE id = ?''', (user_id,))
+        user_information = cursor.fetchone()
+        connection.close()
+
+        if user_information:
+            return User(user_information[0], user_information[1])
+        return None
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        connection, cursor = create_connection()
+        cursor.execute('''SELECT * FROM users WHERE username = ?''', (username,))
+        user = cursor.fetchone()
+        connection.close()
+
+        if user and check_password_hash(user[2], password):
+            user_obj = User(user[0], user[1])  # id, username
+            login_user(user_obj)
+            return redirect(url_for('index'))
+        
+        flash('Wrong username or password')
+        return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        connection, cursor = create_connection()
+        cursor.execute('''SELECT * FROM users WHERE username = ?''', (username,))
+        
+        if cursor.fetchone():
+            flash('Username already exists')
+            return redirect(url_for('register'))
+        hashed_password = generate_password_hash(password)
+        cursor.execute('''INSERT INTO users (username, password_hash) VALUES(?, ?)''', (username, hashed_password))
+
+        connection.commit()
+        connection.close()
+
+        return redirect(url_for('login')) 
+    return render_template('register.html')
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('index'))  
+
 
 def get_stock_chart_data(symbol, period):
     """

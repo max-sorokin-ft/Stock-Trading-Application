@@ -5,8 +5,10 @@ import sqlite3
 from apscheduler.schedulers.background import BackgroundScheduler 
 from time import sleep, time
 from stock_data import get_stock_data, process_daily_price_history, process_intraday_price_history
-from database import create_connection, update_intraday_price_history, clear_price_history, create_tables
+from database import create_connection, update_intraday_price_history, clear_price_history, create_tables, update_current_month_data
 from datetime import datetime, timedelta
+import pandas_market_calendars as mcal
+import pandas as pd
 
 def update_daily_price_history(stock_symbols):
     """
@@ -55,19 +57,22 @@ def get_last_12_months():
     Returns:
         List of month strings in descending order
     """
-    current_date = datetime.now()
+    nyse = mcal.get_calendar('NYSE')
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=400)
+    valid_days = nyse.valid_days(start_date=start_date, end_date=end_date)
+    
     months = []
+    for day in valid_days:
+        month = day.strftime('%Y-%m')
+        months.append(month)
     
-    for i in range(12):
-        # Subtract i months from current date
-        date = current_date - timedelta(days=30*i)
-        # Format as YYYY-MM
-        month_str = date.strftime('%Y-%m')
-        months.append(month_str)
+    unique_months = list(set(months))
     
-    return months
+    return unique_months
 
 if __name__ == "__main__":
+    create_tables()
     # List of stocks to track
     stock_symbols = ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'WMT']
 

@@ -2,9 +2,18 @@
 <html>
 <head>
     <title>Stock Chart App</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/index.css">
 </head>
 <body>
+    <div class="nav-links">
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('register') }}">Register</a>
+    {% endif %}
+    </div>
+
     <h1>Stock Chart Viewer</h1>
     <form method="post">
         <input type="text" class="search-bar" placeholder="Enter stock symbol (e.g., AAPL)" name="symbol">
