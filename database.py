@@ -40,13 +40,15 @@ def create_tables():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS stocks_current(
         stock_symbol TEXT PRIMARY KEY,
-        current_price REAL NOT NULL,
         open_price REAL NOT NULL,
         high_price REAL NOT NULL,
         low_price REAL NOT NULL,
+        price REAL NOT NULL,
         volume INTEGER NOT NULL,
-        daily_change REAL NOT NULL,
-        last_updated TEXT NOT NULL
+        latest_trading_day TEXT NOT NULL,
+        previous_close REAL NOT NULL,
+        change REAL NOT NULL,
+        change_percent REAL NOT NULL
     )
     ''')
     
@@ -101,12 +103,12 @@ def update_current_stock_data(stock_symbols):
         connection, cursor = create_connection()
 
         for symbol in stock_symbols:
-            daily_data, intraday_data, symbol = get_stock_data(symbol)
+            quote_data, symbol = get_stock_data(symbol, daily_data_needed=False, intraday_data_needed=False)
             
-            if not daily_data or not intraday_data:
+            if not quote_data:
                 continue
             
-            processed_data = process_current_stock_data(daily_data, intraday_data, symbol)
+            processed_data = process_current_stock_data(quote_data, symbol)
 
             if not processed_data:
                 continue
@@ -114,18 +116,20 @@ def update_current_stock_data(stock_symbols):
             # Update stocks_current table with latest data
             cursor.execute('''
                 INSERT OR REPLACE INTO stocks_current 
-                (stock_symbol, current_price, open_price, high_price, low_price,
-                volume, daily_change, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (stock_symbol, open_price, high_price, low_price, price,
+                volume, latest_trading_day, previous_close, change, change_percent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 processed_data['stock_symbol'],
-                processed_data['current_price'],
                 processed_data['open_price'],
                 processed_data['high_price'],
                 processed_data['low_price'],
+                processed_data['price'],
                 processed_data['volume'],
-                processed_data['daily_change'],
-                processed_data['last_updated']
+                processed_data['latest_trading_day'],
+                processed_data['previous_close'],
+                processed_data['change'],
+                processed_data['change_percent']
             ))
             connection.commit()
     
@@ -146,7 +150,7 @@ def update_intraday_price_history(stock_symbols, month):
         connection, cursor = create_connection()
 
         for symbol in stock_symbols:
-            intraday_data, symbol = get_stock_data(symbol, month, daily_data_needed=False)
+            intraday_data, symbol = get_stock_data(symbol, month, daily_data_needed=False, current_data_needed=False)
 
             if not intraday_data:
                 print(f"Skipping {symbol} - no data available")

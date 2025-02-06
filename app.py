@@ -22,7 +22,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-
 class User(UserMixin):
     def __init__(self, id, username):
         self.id = id
@@ -247,6 +246,13 @@ def get_stock_chart_data(symbol, period):
     fig = go.Figure(data=[trace], layout=layout)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
+def get_current_stock_data(symbol):
+    connection, cursor = create_connection()
+    cursor.execute('''SELECT * FROM stocks_current WHERE stock_symbol = ?''', (symbol, ))
+    current_stock_data = cursor.fetchone()
+    connection.close()
+    return current_stock_data
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Handle home page requests"""
@@ -267,19 +273,15 @@ def stock_detail(symbol):
     period = request.args.get('period', '1mo')  # Default to 1 month view
     
     # Generate chart data
-    chart_json = get_stock_chart_data(symbol, period)
+    stock_chart_json = get_stock_chart_data(symbol, period)
     
-    # Get current stock information
-    connection, cursor = create_connection()
-    cursor.execute('SELECT * FROM stocks_current WHERE stock_symbol = ?', (symbol,))
-    current_data = cursor.fetchone()
-    connection.close()
+    current_stock_data = get_current_stock_data(symbol)
     
     return render_template('stock.html', 
                          symbol=symbol, 
                          period=period,
-                         chart_json=chart_json,
-                         current_data=current_data)
+                         stock_chart_json=stock_chart_json,
+                         current_stock_data=current_stock_data)
 
 def update_charts():
     """Update stock data for tracked symbols"""
@@ -287,6 +289,7 @@ def update_charts():
     tracked_symbols = ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'WMT']
     update_current_month_data(tracked_symbols)
     update_daily_price_history(tracked_symbols)
+    update_current_stock_data(tracked_symbols)
 
 if __name__ == "__main__":
     # Initial data update

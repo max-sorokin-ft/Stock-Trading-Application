@@ -6,7 +6,8 @@ import json
 from apscheduler.schedulers.background import BackgroundScheduler
 from config import API_KEY, BASE_URL
   
-def get_stock_data(stock_symbol, month=None, daily_data_needed=True, intraday_data_needed=True):
+# CHANGE: Remove current_data_needed parameter and its related logic
+def get_stock_data(stock_symbol, month=None, daily_data_needed=True, intraday_data_needed=True, current_data_needed=True):
     """
     Fetch stock data from Alpha Vantage API.
     
@@ -27,15 +28,11 @@ def get_stock_data(stock_symbol, month=None, daily_data_needed=True, intraday_da
             intraday_url = f'{BASE_URL}function=TIME_SERIES_INTRADAY&symbol={stock_symbol}&interval=1min&outputsize=full&entitlement=delayed&extended_hours=false&apikey={API_KEY}'
 
         # Handle different combinations of data requests
-        if daily_data_needed and intraday_data_needed:
-            daily_url = f'{BASE_URL}function=TIME_SERIES_DAILY_ADJUSTED&symbol={stock_symbol}&outputsize=full&apikey={API_KEY}'
-            daily_response = requests.get(daily_url)
-            daily_data = daily_response.json()
-
-            intraday_response = requests.get(intraday_url)
-            intraday_data = intraday_response.json()
-
-            return daily_data, intraday_data, stock_symbol
+        if current_data_needed:
+            quote_url = f'{BASE_URL}function=GLOBAL_QUOTE&symbol={stock_symbol}&entitlement=delayed&apikey={API_KEY}'
+            quote_response = requests.get(quote_url)
+            quote_data = quote_response.json()
+            return quote_data, stock_symbol
         
         elif daily_data_needed:
             daily_url = f'{BASE_URL}function=TIME_SERIES_DAILY_ADJUSTED&symbol={stock_symbol}&outputsize=full&apikey={API_KEY}'
@@ -52,51 +49,27 @@ def get_stock_data(stock_symbol, month=None, daily_data_needed=True, intraday_da
 
     except Exception as e:
         print(f"Error getting stock data for {stock_symbol}: {e}")
-        if daily_data_needed and intraday_data_needed:
-            return None, None, stock_symbol
-        else:
-            return None, stock_symbol
+        return None, stock_symbol
      
-def process_current_stock_data(daily_data, intraday_data, stock_symbol):
-    """
-    Process raw API data into current stock information.
-    
-    Args:
-        daily_data: JSON response from daily API endpoint
-        intraday_data: JSON response from intraday API endpoint
-        stock_symbol: Stock ticker symbol
-        
-    Returns:
-        Dictionary containing processed current stock data
-    """
-    try:
-        # Extract relevant dates and values
-        current_market_day = daily_data['Meta Data']['3. Last Refreshed'] 
-        current_day_values = daily_data['Time Series (Daily)'][current_market_day]
-
-        trading_days = list(daily_data['Time Series (Daily)'].keys())
-        previous_market_day = trading_days[1]  # Get previous trading day
-        previous_day_values = daily_data['Time Series (Daily)'][previous_market_day]
-
-        market_timestamps = list(intraday_data['Time Series (1min)'].keys())
-        most_recent_timestamp = market_timestamps[0]  # Get latest intraday update
-        intraday_values = intraday_data['Time Series (1min)'][most_recent_timestamp]
-
-        # Compile current stock information
-        return {
-            'stock_symbol': stock_symbol,
-            'current_price': round(float(intraday_values['4. close']), 2),
-            'open_price': round(float(current_day_values['1. open']), 2), 
-            'high_price': round(float(current_day_values['2. high']), 2),
-            'low_price': round(float(current_day_values['3. low']), 2),
-            'volume': int(current_day_values['6. volume']),
-            'daily_change': round(float(intraday_values['4. close']) - float(previous_day_values['5. adjusted close']), 2),
-            'last_updated': most_recent_timestamp
-        }
-
-    except Exception as e:
-        print(f"Error processing data for {stock_symbol}: {e}")
-        return None
+def process_current_stock_data(quote_data, stock_symbol):
+   """Process raw quote data into current stock information."""
+   try:
+       quote = quote_data['Global Quote - DATA DELAYED BY 15 MINUTES']
+       return {
+           'stock_symbol': stock_symbol,
+           'open_price': round(float(quote['02. open']), 2),
+           'high_price': round(float(quote['03. high']), 2), 
+           'low_price': round(float(quote['04. low']), 2),
+           'price': round(float(quote['05. price']), 2),
+           'volume': int(quote['06. volume']),
+           'latest_trading_day': quote['07. latest trading day'],
+           'previous_close': round(float(quote['08. previous close']), 2),
+           'change': round(float(quote['09. change']), 2),
+           'change_percent': quote['10. change percent']
+       }
+   except Exception as e:
+       print(f"Error processing data for {stock_symbol}: {e}")
+       return None
    
 def process_daily_price_history(daily_data, stock_symbol, date):
     """

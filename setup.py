@@ -22,7 +22,7 @@ def update_daily_price_history(stock_symbols):
 
         for symbol in stock_symbols:
             # Get daily data from API
-            daily_data, symbol = get_stock_data(symbol, intraday_data_needed=False)
+            daily_data, symbol = get_stock_data(symbol, intraday_data_needed=False, current_data_needed=False)
 
             if not daily_data:
                 print(f"Skipping {symbol} - no data available")

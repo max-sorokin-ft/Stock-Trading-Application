@@ -1,56 +1,82 @@
-<!-- stock.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>{{ symbol }} Stock Chart</title>
+    <link rel="stylesheet" href="/static/index.css">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .chart-controls {
-            margin-bottom: 20px;
-        }
-        .chart-controls form {
-            display: flex;
-            gap: 15px;  /* Adds space between the dropdowns */
-            align-items: center;
-        }
-        select {
-            padding: 5px;
-            font-size: 16px;
-        }
-        #chart {
-            width: 100%;
-            height: 600px;
-        }
-    </style>
 </head>
 <body>
+    <div class="nav-links">
+        <a href="/" class="home-link">← Back to Search</a>
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
+    </div>
+
     <div class="container">
-        <h1>{{ symbol }} Stock Chart</h1>
-        
-        <div class="chart-controls">
-            <form method="GET">
-                <select name="period" onchange="this.form.submit()">
-                    <option value="1day" {% if period == '1day' %}selected{% endif %}>1 Day</option>
-                    <option value="1week" {% if period == '1week' %}selected{% endif %}>1 Week</option>
-                    <option value="1mo" {% if period == '1mo' %}selected{% endif %}>1 Month</option>
-                    <option value="3mo" {% if period == '3mo' %}selected{% endif %}>3 Months</option>
-                    <option value="6mo" {% if period == '6mo' %}selected{% endif %}>6 Months</option>
-                    <option value="1y" {% if period == '1y' %}selected{% endif %}>1 Year</option>
-                    <option value="5y" {% if period == '5y' %}selected{% endif %}>5 Years</option>
-                </select>
-            </form>
+        <div class="page-header">
+            <h1 class="stock-title">{{ symbol }} Stock Chart</h1>
         </div>
 
-        <div id="chart"></div>
+        <div class="chart-container">
+            <div class="chart-controls">
+                <form method="GET">
+                    <select name="period" onchange="this.form.submit()" class="period-select">
+                        <option value="1day" {% if period == '1day' %}selected{% endif %}>1 Day</option>
+                        <option value="1week" {% if period == '1week' %}selected{% endif %}>1 Week</option>
+                        <option value="1mo" {% if period == '1mo' %}selected{% endif %}>1 Month</option>
+                        <option value="3mo" {% if period == '3mo' %}selected{% endif %}>3 Months</option>
+                        <option value="6mo" {% if period == '6mo' %}selected{% endif %}>6 Months</option>
+                        <option value="1y" {% if period == '1y' %}selected{% endif %}>1 Year</option>
+                        <option value="5y" {% if period == '5y' %}selected{% endif %}>5 Years</option>
+                    </select>
+                </form>
+            </div>
+            <div id="chart"></div>
+        </div>
+
+        {% if current_stock_data %}
+        <div class="stock-dashboard">
+            <h2 style="color: #333; margin: 0 0 20px 0;">Market Statistics</h2>
+            <div class="stock-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Current Price</div>
+                    <div class="stat-value">${{ "%.2f"|format(current_stock_data[4]) }}</div>
+                    <div class="stat-change {% if current_stock_data[8] > 0 %}positive-change{% else %}negative-change{% endif %}">
+                        {{ "+" if current_stock_data[8] > 0 else "" }}{{ "%.2f"|format(current_stock_data[8]) }} ({{ current_stock_data[9] }})
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-label">Today's Trading</div>
+                    <div class="stat-value">${{ "%.2f"|format(current_stock_data[1]) }}</div>
+                    <div class="stat-label">Open Price</div>
+                    <div class="stat-label" style="margin-top: 8px;">Previous Close: ${{ "%.2f"|format(current_stock_data[7]) }}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Day's Range</div>
+                    <div class="stat-value">
+                        ${{ "%.2f"|format(current_stock_data[3]) }} - ${{ "%.2f"|format(current_stock_data[2]) }}
+                    </div>
+                    <div class="stat-label">Low - High</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Volume</div>
+                    <div class="stat-value">{{ "{:,}".format(current_stock_data[5]) }}</div>
+                    <div class="stat-label">Last Updated: {{ current_stock_data[6] }}</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <script>
-        var chartJson = {{ chart_json | safe }};
+        var chartJson = {{ stock_chart_json | safe }};
         Plotly.newPlot('chart', chartJson.data, chartJson.layout);
     </script>
 </body>
