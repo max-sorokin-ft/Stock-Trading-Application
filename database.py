@@ -51,21 +51,30 @@ def create_tables():
         change_percent REAL NOT NULL
     )
     ''')
-    
-    # Transaction history table - stores user trades
-    # Columns: id, stock_symbol, price, shares, transaction_type, timestamp
+
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS transactions(
+    CREATE TABLE IF NOT EXISTS portfolios(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
         stock_symbol TEXT NOT NULL,
-        price REAL NOT NULL,
         shares INTEGER NOT NULL,
-        transaction_type TEXT CHECK(transaction_type IN ('BUY', 'SELL')) NOT NULL,
-        timestamp TEXT NOT NULL,
-        FOREIGN KEY(stock_symbol) REFERENCES stocks_current(stock_symbol)
+        average_price REAL NOT NULL,
+        UNIQUE(user_id, stock_symbol)
     )
     ''')
 
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS transactions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        stock_symbol TEXT NOT NULL,
+        transaction_type TEXT CHECK(transaction_type IN ('BUY', 'SELL')) NOT NULL,
+        shares INTEGER NOT NULL,
+        price_per_share REAL NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
     # Users table - stores user account information
     # Columns: id, username, password_hash, email, created_at
     cursor.execute('''
@@ -126,7 +135,7 @@ def update_current_stock_data(stock_symbols):
                 processed_data['low_price'],
                 processed_data['price'],
                 processed_data['volume'],
-                processed_data['latest_trading_day'],
+                processed_data['latest_timestamp'],
                 processed_data['previous_close'],
                 processed_data['change'],
                 processed_data['change_percent']

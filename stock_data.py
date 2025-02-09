@@ -3,6 +3,7 @@
 
 import requests
 import json
+from datetime import datetime, time
 from apscheduler.schedulers.background import BackgroundScheduler
 from config import API_KEY, BASE_URL
   
@@ -55,6 +56,13 @@ def process_current_stock_data(quote_data, stock_symbol):
    """Process raw quote data into current stock information."""
    try:
        quote = quote_data['Global Quote - DATA DELAYED BY 15 MINUTES']
+
+       latest_timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+       current_time = datetime.now().time()
+
+       if current_time < time(9, 30) or current_time > time(16, 0):
+           latest_timestamp = f"{quote['07. latest trading day']}  4:00:00 PM"
+           
        return {
            'stock_symbol': stock_symbol,
            'open_price': round(float(quote['02. open']), 2),
@@ -62,10 +70,10 @@ def process_current_stock_data(quote_data, stock_symbol):
            'low_price': round(float(quote['04. low']), 2),
            'price': round(float(quote['05. price']), 2),
            'volume': int(quote['06. volume']),
-           'latest_trading_day': quote['07. latest trading day'],
+           'latest_timestamp': latest_timestamp,
            'previous_close': round(float(quote['08. previous close']), 2),
            'change': round(float(quote['09. change']), 2),
-           'change_percent': quote['10. change percent']
+           'change_percent': str(round(float(quote['10. change percent'].strip('%')), 2)) + '%'    
        }
    except Exception as e:
        print(f"Error processing data for {stock_symbol}: {e}")

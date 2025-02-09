@@ -1,19 +1,21 @@
 <!-- register.html -->
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Register - Stock Chart App</title>
     <link rel="stylesheet" href="/static/index.css">
 </head>
+
 <body>
     <div class="auth-container">
         <h1>Register</h1>
         {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
         <form method="POST" class="auth-form">
             <div>
@@ -29,4 +31,5 @@
         </div>
     </div>
 </body>
+
 </html>

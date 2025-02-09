@@ -1,17 +1,22 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Stock Chart App</title>
     <link rel="stylesheet" href="/static/index.css">
 </head>
+
 <body>
     <div class="nav-links">
         {% if current_user.is_authenticated %}
-            <a href="{{ url_for('logout') }}">Logout</a>
+        <a href="{{ url_for('portfolio') }}" id="portfolio-button">Portfolio</a>
+        {% endif %}
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
-            <a href="{{ url_for('login') }}">Login</a>
-            <a href="{{ url_for('register') }}">Register</a>
-    {% endif %}
+        <a href="{{ url_for('login') }}">Login</a>
+        <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
     </div>
 
     <h1>Stock Chart Viewer</h1>
@@ -20,4 +25,5 @@
         <button type="submit" class="submit-button">View Stock</button>
     </form>
 </body>
+
 </html>

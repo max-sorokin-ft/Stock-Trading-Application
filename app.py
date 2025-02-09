@@ -2,7 +2,7 @@
 # Handles routing, chart generation, and scheduled updates
 
 from flask import Flask, render_template, redirect, url_for, request, flash
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler  
 from datetime import datetime, timedelta, time
@@ -282,6 +282,34 @@ def stock_detail(symbol):
                          period=period,
                          stock_chart_json=stock_chart_json,
                          current_stock_data=current_stock_data)
+
+@app.route('/buy/<symbol>', methods=['GET', 'POST'])
+@login_required 
+def buy_stock(symbol):
+    current_stock_data = get_current_stock_data(symbol)
+
+    if request.method == "POST":
+        shares = request.form.get('shares')
+        connection, cursor = create_connection()
+        cursor.execute('''
+            INSERT INTO transactions (user_id, stock_symbol, transaction_type, shares, price_per_share) 
+            VALUES(?, ?, ?, ?, ?)''', 
+            (current_user.id, symbol, 'BUY', shares, current_stock_data[4]))
+        connection.commit()
+        connection.close()
+
+        return redirect(url_for('portfolio'))
+
+    if not current_stock_data:
+        flash('Invalid stock symbol')
+        return redirect(url_for('index'))
+    
+    return render_template('buy.html', symbol=symbol, current_stock_data=current_stock_data)
+
+@app.route('/portfolio')
+@login_required
+def portfolio():
+    return render_template('portfolio.html')
 
 def update_charts():
     """Update stock data for tracked symbols"""
