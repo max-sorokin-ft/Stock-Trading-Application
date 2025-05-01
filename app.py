@@ -71,8 +71,9 @@ def register():
 
         connection, cursor = create_connection()
         cursor.execute('''SELECT * FROM users WHERE username = ?''', (username,))
+        user = cursor.fetchone()
         
-        if cursor.fetchone():
+        if user:
             flash('Username already exists')
             return redirect(url_for('register'))
         hashed_password = generate_password_hash(password)

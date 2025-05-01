@@ -55,7 +55,7 @@ def get_last_12_months():
     Generate list of last 12 months in YYYY-MM format
     
     Returns:
-        List of month strings in descending order
+        List of month strings in descending order`
     """
     nyse = mcal.get_calendar('NYSE')
     end_date = datetime.now()

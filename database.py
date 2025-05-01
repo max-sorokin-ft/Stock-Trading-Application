@@ -174,7 +174,7 @@ def update_intraday_price_history(stock_symbols, month):
                 INSERT OR REPLACE INTO price_history
                     (stock_symbol, price, timestamp)
                     VALUES  (?, ?, ?)
-                ''', (
+                ''', ( 
                     processed_data['stock_symbol'],
                     processed_data['close_price'],
                     processed_data['timestamp']
