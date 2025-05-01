@@ -312,7 +312,7 @@ def buy_stock(symbol):
 def portfolio():
     return render_template('portfolio.html')
 
-def update_charts():
+def refresh_stock_data():
     """Update stock data for tracked symbols"""
     # List of tracked stocks (limited to 20 on lowest paid API tier)
     tracked_symbols = ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'WMT']
@@ -322,11 +322,11 @@ def update_charts():
 
 if __name__ == "__main__":
     # Initial data update
-    update_charts()
+    refresh_stock_data()
     
     # Configure scheduler for periodic updates
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=update_charts, 
+    scheduler.add_job(func=refresh_stock_data, 
                      trigger="interval", 
                      seconds=60,  # Update every minute
                      misfire_grace_time=30)
