@@ -20,6 +20,17 @@
         <a href="{{ url_for('register') }}">Register</a>
         {% endif %}
     </div>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-messages" style="margin: 20px; color: red; text-align: center;">
+        {% for message in messages %}
+        <p>{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
     <div class="container">
         <div class="page-header">
             <h1 class="stock-title">{{ symbol }} Stock Chart</h1>
@@ -41,13 +52,6 @@
             <div id="chart"></div>
         </div>
         {% if current_stock_data %}
-        <div class="nav-links" id="buy-button">
-            {% if current_user.is_authenticated %}
-            <a href="{{ url_for('buy_stock', symbol=symbol) }}">Buy Shares</a>
-            {% else %}
-            <a href="{{ url_for('login') }}">Buy Shares</a>
-            {% endif %}
-        </div>
         <div class="stock-dashboard">
             <h2 style="color: #333; margin: 0 0 20px 0;">Market Statistics</h2>
             <div class="stock-stats">
@@ -78,11 +82,62 @@
                     <div class="stat-label">Last Updated: {{ current_stock_data[6] }}</div>
                 </div>
             </div>
-        </div> {% endif %}
+        </div>
+
+        {% if current_user.is_authenticated %}
+        <div class="transaction-section"
+            style="margin-top: 30px; background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+            <h2 style="color: #333; margin: 0 0 20px 0;">Trade {{ symbol }}</h2>
+
+            {% if user_shares %}
+            <div class="user-position"
+                style="margin-bottom: 20px; padding: 10px; background-color: #e9ecef; border-radius: 5px;">
+                <p>You currently own {{ user_shares }} shares
+                </p>
+            </div>
+            {% endif %}
+
+            <div class="purchase-form">
+                <form method="POST" action="{{ url_for('stock_detail', symbol=symbol) }}">
+                    <div class="shares-input">
+                        <label for="shares">Number of Shares:</label>
+                        <input type="number" id="shares" name="shares" min="1" step="1" required {% if user_shares
+                            %}max="{{ user_shares }}" {% else %}max="1000" {% endif %}>
+                        <div id="total-display" style="margin-top: 10px; font-size: 17px;"></div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button type="submit" name="transaction_type" value="BUY" class="submit-button purchase-button"
+                            style="background-color: rgb(0, 165, 85); padding: 12px 24px; border-radius: 8px;">BUY</button>
+                        {% if user_shares %}
+                        <button type="submit" name="transaction_type" value="SELL" class="submit-button purchase-button"
+                            style="background-color: rgb(255, 0, 0); padding: 12px 24px; border-radius: 8px;">SELL</button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="nav-links" id="login-prompt" style="margin-top: 20px; text-align: center;">
+            <a href="{{ url_for('login') }}" class="submit-button">Login to Trade</a>
+        </div>
+        {% endif %}
+        {% endif %}
     </div>
     <script>
         var chartJson = {{ stock_chart_json | safe }};
         Plotly.newPlot('chart', chartJson.data, chartJson.layout);
+
+        const sharesInput = document.getElementById('shares');
+        const totalDisplay = document.getElementById('total-display');
+        const currentPrice = parseFloat('{{ current_stock_data[4] }}');
+
+        if (sharesInput && totalDisplay) {
+            sharesInput.addEventListener('input', function () {
+                const shares = parseInt(this.value) || 0;
+                const total = shares * currentPrice;
+                totalDisplay.textContent = `Total: $${total.toFixed(2)}`;
+            });
+        }
     </script>
 </body>
 

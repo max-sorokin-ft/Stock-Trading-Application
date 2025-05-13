@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Your Portfolio</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background-color: #f9f9f9;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+    }
+
+    th,
+    td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background-color: rgb(103, 103, 252);
+      color: white;
+    }
+
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+
+    .positive {
+      color: green;
+    }
+
+    .negative {
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="nav-links">
+    <a href="/" class="home-link">← Back to Search</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+  </div>
+  <h1>Your Portfolio</h1>
+
+  {% if portfolio_data %}
+  <table>
+    <thead>
+      <tr>
+        <th>Symbol</th>
+        <th>Shares</th>
+        <th>Average Price</th>
+        <th>Total Cost Basis</th>
+        <th>Current Value</th>
+        <th>% Change</th>
+        <th>Gain/Loss</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in portfolio_data %}
+      <tr>
+        <td>{{ row[2] }}</td> {# stock_symbol #}
+        <td>{{ row[3] }}</td> {# shares #}
+        <td>${{ "%.2f"|format(row[4]) }}</td> {# average_price #}
+        <td>${{ "%.2f"|format(row[6]) }}</td> {# total_cost_basis #}
+        <td>${{ "%.2f"|format(row[7]) }}</td> {# current_value #}
+        <td class="{{ 'positive' if row[5] >= 0 else 'negative' }}">
+          {{ "%.2f"|format(row[5]) }}%
+        </td>
+        <td class="{{ 'positive' if row[8] >= 0 else 'negative' }}">
+          ${{ "%.2f"|format(row[8]) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align: center;">Your portfolio is currently empty.</p>
+  {% endif %}
+</body>
+
+</html>

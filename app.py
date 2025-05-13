@@ -10,7 +10,7 @@ from dateutil.relativedelta import relativedelta
 import plotly
 import plotly.graph_objs as go
 import json
-from database import create_connection, update_current_stock_data, update_intraday_price_history, update_current_month_data
+from database import create_connection, update_current_stock_data, update_intraday_price_history, update_current_month_data, process_transaction, update_all_portfolios
 from setup import update_daily_price_history
 import secrets
 
@@ -54,7 +54,7 @@ def login():
         connection.close()
 
         if user and check_password_hash(user[2], password):
-            user_obj = User(user[0], user[1])  # id, username
+            user_obj = User(user[0], user[1])
             login_user(user_obj)
             return redirect(url_for('index'))
         
@@ -263,7 +263,7 @@ def index():
             return redirect(url_for('stock_detail', symbol=symbol))
     return render_template('index.html')
 
-@app.route('/stock/<symbol>')
+@app.route('/stock/<symbol>', methods=['GET', 'POST'])
 def stock_detail(symbol):
     """
     Display detailed stock information and chart
@@ -277,40 +277,50 @@ def stock_detail(symbol):
     stock_chart_json = get_stock_chart_data(symbol, period)
     
     current_stock_data = get_current_stock_data(symbol)
+
+    user_shares, portfolio = None, None
+
+    if current_user.is_authenticated:
+        connection, cursor = create_connection()
+        cursor.execute('''SELECT shares FROM portfolios where user_id = ? and stock_symbol = ?''',(current_user.id, symbol))
+        portfolio = cursor.fetchone()
+        
+        if portfolio:
+            user_shares = portfolio[0]
+        
+        connection.close()
     
+    if request.method =='POST':
+        transaction_type = request.form.get('transaction_type')
+
+        try:
+            shares = int(request.form.get('shares'))
+            if shares < 1:
+                flash("You must buy at least 1 share.")
+                return redirect(url_for('stock_detail', symbol=symbol))
+        except (TypeError, ValueError):
+            flash("Invalid number of shares.")
+            return redirect(url_for('stock_detail', symbol=symbol))
+        
+        process_transaction(current_user.id, symbol, transaction_type, shares, current_stock_data[4])
+        return redirect(url_for('portfolio'))
+
     return render_template('stock.html', 
+                         user_shares=user_shares,
                          symbol=symbol, 
                          period=period,
                          stock_chart_json=stock_chart_json,
                          current_stock_data=current_stock_data)
 
-@app.route('/buy/<symbol>', methods=['GET', 'POST'])
-@login_required 
-def buy_stock(symbol):
-    current_stock_data = get_current_stock_data(symbol)
-
-    if request.method == "POST":
-        shares = request.form.get('shares')
-        connection, cursor = create_connection()
-        cursor.execute('''
-            INSERT INTO transactions (user_id, stock_symbol, transaction_type, shares, price_per_share) 
-            VALUES(?, ?, ?, ?, ?)''', 
-            (current_user.id, symbol, 'BUY', shares, current_stock_data[4]))
-        connection.commit()
-        connection.close()
-
-        return redirect(url_for('portfolio'))
-
-    if not current_stock_data:
-        flash('Invalid stock symbol')
-        return redirect(url_for('index'))
-    
-    return render_template('buy.html', symbol=symbol, current_stock_data=current_stock_data)
-
 @app.route('/portfolio')
 @login_required
 def portfolio():
-    return render_template('portfolio.html')
+    connection, cursor = create_connection()
+    cursor.execute('''SELECT * FROM portfolios WHERE user_id = ? ORDER BY stock_symbol ASC''', (current_user.id,))
+    portfolio_data = cursor.fetchall()
+    connection.close()
+
+    return render_template('portfolio.html', portfolio_data=portfolio_data)
 
 def refresh_stock_data():
     """Update stock data for tracked symbols"""
@@ -319,6 +329,7 @@ def refresh_stock_data():
     update_current_month_data(tracked_symbols)
     update_daily_price_history(tracked_symbols)
     update_current_stock_data(tracked_symbols)
+    update_all_portfolios()
 
 if __name__ == "__main__":
     # Initial data update

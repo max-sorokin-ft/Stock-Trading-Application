@@ -59,6 +59,10 @@ def create_tables():
         stock_symbol TEXT NOT NULL,
         shares INTEGER NOT NULL,
         average_price REAL NOT NULL,
+        percent_change REAL NOT NULL,
+        total_cost_basis REAL NOT NULL,
+        current_value REAL NOT NULL,
+        gain_loss_dollars REAL NOT NULL,
         UNIQUE(user_id, stock_symbol)
     )
     ''')
@@ -183,6 +187,147 @@ def update_intraday_price_history(stock_symbols, month):
         connection.commit()
     except Exception as e:
         print(f"Error updating intraday data: {e}")
+    finally:
+        connection.close()
+
+def update_all_portfolios():
+    try:
+        connection, cursor = create_connection()
+
+        # Get all unique user IDs that have transactions
+        cursor.execute('''SELECT DISTINCT user_id FROM transactions''')
+        user_ids = [row[0] for row in cursor.fetchall()]
+
+        if not user_ids:
+            print("No users with transactions found. Skipping portfolio update.")
+            return
+
+        for user_id in user_ids:
+            cursor.execute('''SELECT DISTINCT stock_symbol FROM transactions WHERE user_id = ?''',(user_id,))
+            stock_symbols = [row[0] for row in cursor.fetchall()]
+
+            for stock_symbol in stock_symbols:
+               
+               cursor.execute('''SELECT price
+                                FROM stocks_current
+                                WHERE stock_symbol = ?''',
+                                (stock_symbol,))
+               current_price_result = cursor.fetchone()
+               current_price = current_price_result[0]
+
+               cursor.execute('''SELECT average_price, shares, total_cost_basis
+                                FROM portfolios
+                                where user_id = ? and stock_symbol = ?''',
+                                (user_id, stock_symbol))
+               portfolio_data = cursor.fetchone()
+               
+               if portfolio_data:
+                   average_price = portfolio_data[0]
+                   shares = portfolio_data[1]
+                   total_cost_basis = portfolio_data[2]
+
+                   percent_change = ((current_price/ average_price) - 1) * 100
+
+                   current_value = shares * current_price
+
+                   gain_loss_dollars = current_value - total_cost_basis
+
+                   cursor.execute('''UPDATE portfolios
+                                    SET percent_change = ?, current_value = ?, gain_loss_dollars = ?
+                                    WHERE user_id = ? AND stock_symbol = ?''', 
+                                    (percent_change, current_value, gain_loss_dollars, user_id, stock_symbol))          
+        connection.commit()
+    except Exception as e:
+        print(f"Porfolio not showing. Error: {e}")
+    finally:
+        connection.close()
+    
+def process_transaction(user_id, stock_symbol, transaction_type, shares, price_per_share):
+    """
+    Process a stock transaction and update portfolio accordingly using average cost method
+    
+    Args:
+        user_id: User ID
+        stock_symbol: Stock symbol
+        transaction_type: 'BUY' or 'SELL'
+        shares: Number of shares
+        price_per_share: Price per share
+    """
+    connection, cursor = create_connection()
+
+    try:
+        cursor.execute('''
+                        INSERT INTO transactions
+                        (user_id, stock_symbol, transaction_type, shares, price_per_share)
+                        VALUES(?, ?, ?, ?, ?)''',
+                        (user_id, stock_symbol, transaction_type, shares, price_per_share))
+        
+        cursor.execute('''
+                        SELECT shares, average_price
+                        FROM portfolios
+                        where user_id = ? and stock_symbol = ?''',
+                        (user_id, stock_symbol))
+        
+        portfolio = cursor.fetchone()
+
+        if transaction_type == 'BUY':
+            if portfolio:
+                new_total_shares = portfolio[0] + shares
+                avg_price = ((portfolio[0] * portfolio[1]) + (shares * price_per_share)) / new_total_shares
+                percent_change = ((price_per_share / avg_price) - 1) * 100
+                total_cost_basis = avg_price * new_total_shares
+                current_value = price_per_share * new_total_shares
+                gain_loss_dollars = current_value - total_cost_basis
+
+
+                cursor.execute('''
+                                UPDATE portfolios 
+                                SET shares = ?, average_price = ?, percent_change = ?,
+                                total_cost_basis = ?, current_value = ?, gain_loss_dollars = ?
+                                WHERE user_id = ? AND stock_symbol = ?''',
+                                (new_total_shares, avg_price, percent_change, total_cost_basis, current_value, gain_loss_dollars, user_id, stock_symbol))
+            else:
+                total_cost_basis = price_per_share * shares
+                current_value = price_per_share * shares
+                gain_loss_dollars, percent_change = 0, 0
+                cursor.execute('''
+                                INSERT INTO portfolios 
+                                (user_id, stock_symbol, shares, average_price, percent_change, total_cost_basis, current_value, gain_loss_dollars) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                                (user_id, stock_symbol, shares, price_per_share, percent_change, total_cost_basis, current_value, gain_loss_dollars))
+                
+        elif transaction_type == 'SELL':
+            if not portfolio:
+                raise ValueError(f"You first have to buy shares of {stock_symbol}, before selling.")
+            
+            current_shares = portfolio[0]
+            current_avg_price = portfolio[1]
+            
+            if shares > current_shares:
+                raise ValueError(f"You cannot sell more shares of {stock_symbol} than you have")
+            
+            new_total_shares = portfolio[0] - shares
+            
+            if new_total_shares > 0:
+                avg_price = current_avg_price
+                percent_change = ((price_per_share / current_avg_price) - 1) * 100
+                total_cost_basis = current_avg_price * new_total_shares
+                current_value = price_per_share * new_total_shares
+                gain_loss_dollars = current_value - total_cost_basis
+
+                cursor.execute('''UPDATE portfolios
+                                SET shares = ?, average_price = ?, percent_change = ?,
+                                total_cost_basis = ?, current_value = ?, gain_loss_dollars = ?
+                                WHERE user_id = ? AND stock_symbol = ?''',
+                                (new_total_shares, avg_price, percent_change, total_cost_basis, current_value, gain_loss_dollars, user_id, stock_symbol))
+            else:
+                cursor.execute('''DELETE FROM portfolios
+                                WHERE user_id = ? AND stock_symbol = ?''', 
+                                (user_id, stock_symbol))
+        connection.commit()
+    except Exception as e:
+        connection.rollback() 
+        raise e
     finally:
         connection.close()
 
