@@ -324,7 +324,7 @@ def portfolio():
 
 def refresh_stock_data():
     """Update stock data for tracked symbols"""
-    # List of tracked stocks (limited to 20 on lowest paid API tier)
+    # List of tracked stocks (limited to 20 on lowest paid API tier))
     tracked_symbols = ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'WMT']
     update_current_month_data(tracked_symbols)
     update_daily_price_history(tracked_symbols)
