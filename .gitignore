@@ -15,3 +15,5 @@ __pycache__/
 
 #JSON files
 *.json
+
+*.vscode
