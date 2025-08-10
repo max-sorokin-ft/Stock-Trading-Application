@@ -2,25 +2,40 @@
 # Handles routing, chart generation, and scheduled updates
 
 from flask import Flask, render_template, redirect, url_for, request, flash
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
-from apscheduler.schedulers.background import BackgroundScheduler  
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta, time
 from dateutil.relativedelta import relativedelta
 import plotly
 import plotly.graph_objs as go
 import json
-from database import create_connection, update_current_stock_data, update_intraday_price_history, update_current_month_data, process_transaction, update_all_portfolios
+from database import (
+    create_connection,
+    update_current_stock_data,
+    update_intraday_price_history,
+    update_current_month_data,
+    process_transaction,
+    update_all_portfolios,
+)
 from setup import update_daily_price_history
 import secrets
 
 # Initialize Flask application
-app = Flask(__name__)   
-app.config['SECRET_KEY'] = secrets.token_hex() 
+app = Flask(__name__)
+app.config["SECRET_KEY"] = secrets.token_hex()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
+
 
 class User(UserMixin):
     def __init__(self, id, username):
@@ -30,7 +45,7 @@ class User(UserMixin):
     @staticmethod
     def get(user_id):
         connection, cursor = create_connection()
-        cursor.execute('''SELECT * FROM users WHERE id = ?''', (user_id,))
+        cursor.execute("""SELECT * FROM users WHERE id = ?""", (user_id,))
         user_information = cursor.fetchone()
         connection.close()
 
@@ -38,88 +53,95 @@ class User(UserMixin):
             return User(user_information[0], user_information[1])
         return None
 
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
 
         connection, cursor = create_connection()
-        cursor.execute('''SELECT * FROM users WHERE username = ?''', (username,))
+        cursor.execute("""SELECT * FROM users WHERE username = ?""", (username,))
         user = cursor.fetchone()
         connection.close()
 
         if user and check_password_hash(user[2], password):
             user_obj = User(user[0], user[1])
             login_user(user_obj)
-            return redirect(url_for('index'))
-        
-        flash('Wrong username or password')
-        return redirect(url_for('login'))
+            return redirect(url_for("index"))
 
-    return render_template('login.html')
+        flash("Wrong username or password")
+        return redirect(url_for("login"))
 
-@app.route('/register', methods=['GET', 'POST'])
+    return render_template("login.html")
+
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
 
         connection, cursor = create_connection()
-        cursor.execute('''SELECT * FROM users WHERE username = ?''', (username,))
+        cursor.execute("""SELECT * FROM users WHERE username = ?""", (username,))
         user = cursor.fetchone()
-        
+
         if user:
-            flash('Username already exists')
-            return redirect(url_for('register'))
+            flash("Username already exists")
+            return redirect(url_for("register"))
         hashed_password = generate_password_hash(password)
-        cursor.execute('''INSERT INTO users (username, password_hash) VALUES(?, ?)''', (username, hashed_password))
+        cursor.execute(
+            """INSERT INTO users (username, password_hash) VALUES(?, ?)""",
+            (username, hashed_password),
+        )
 
         connection.commit()
         connection.close()
 
-        return redirect(url_for('login')) 
-    return render_template('register.html')
+        return redirect(url_for("login"))
+    return render_template("register.html")
 
-@app.route('/logout')
+
+@app.route("/logout")
 def logout():
     logout_user()
-    return redirect(url_for('index'))  
+    return redirect(url_for("index"))
 
 
 def get_stock_chart_data(symbol, period):
     """
     Generate chart data for a given stock symbol and time period.
-    
+
     Args:
         symbol: Stock ticker symbol (e.g., 'AAPL')
         period: Time period for chart ('1day', '1week', '1mo', '3mo', '6mo', '1y', '5y')
-    
+
     Returns:
         JSON string containing chart data and layout configuration
     """
     connection, cursor = create_connection()
-    
+
     # Calculate date range based on selected period
     end_date = datetime.now()
-    if period == '1week':
+    if period == "1week":
         start_date = end_date - timedelta(days=7)
         interval = 5  # 5-minute intervals
-    elif period == '1day':
+    elif period == "1day":
         now = datetime.now()
         current_time = now.time()
         market_open = time(9, 30)  # Market opens at 9:30 AM EST
         market_close = time(16, 0)  # Market closes at 4:00 PM EST
         start_date = end_date - timedelta(days=1)
         interval = 1  # 1-minute intervals
-        
+
         # Handle market hours logic
         if current_time < market_open or current_time > market_close:
-            query = '''
+            query = """
                 SELECT timestamp, price
                 FROM price_history
                 WHERE stock_symbol = ?
@@ -132,39 +154,39 @@ def get_stock_chart_data(symbol, period):
                 )
                 AND substr(timestamp, 12, 8) >= '09:30:00' AND substr(timestamp, 12, 8) <= '16:00:00'
                 ORDER BY timestamp ASC
-            '''
+            """
             params = (symbol,)
         else:
-            today = now.strftime('%Y-%m-%d')
-            query = '''
+            today = now.strftime("%Y-%m-%d")
+            query = """
                 SELECT timestamp, price
                 FROM price_history
                 WHERE stock_symbol = ?
                 AND date(timestamp) = ?
                 AND substr(timestamp, 12, 8) >= '09:30:00' AND substr(timestamp, 12, 8) <= '16:00:00'
                 ORDER BY timestamp ASC
-            '''
+            """
             params = (symbol, today)
-    elif period == '1mo':
+    elif period == "1mo":
         start_date = end_date - relativedelta(months=1)
         interval = 15  # 15-minute intervals
-    elif period == '3mo':
+    elif period == "3mo":
         start_date = end_date - relativedelta(months=3)
         interval = 30  # 30-minute intervals
-    elif period == '6mo':
+    elif period == "6mo":
         start_date = end_date - relativedelta(months=6)
         interval = 60  # 60-minute intervals
-    elif period == '1y':
+    elif period == "1y":
         start_date = end_date - relativedelta(years=1)
         interval = 240  # 4-hour intervals
     else:  # 5y
         start_date = end_date - relativedelta(years=5)
-        
+
     # Build query based on period
-    if period != '1day':
-        if period == '5y':
+    if period != "1day":
+        if period == "5y":
             # For 5-year view, use daily closing prices
-            query = '''
+            query = """
                 SELECT timestamp, price
                 FROM price_history
                 WHERE stock_symbol = ?
@@ -172,12 +194,15 @@ def get_stock_chart_data(symbol, period):
                 AND substr(timestamp, 12, 8) = '16:00:00'
                 GROUP BY date(timestamp)
                 ORDER BY timestamp ASC
-            '''
-            params = (symbol, start_date.strftime('%Y-%m-%d %H:%M:%S'),
-                     end_date.strftime('%Y-%m-%d %H:%M:%S'))
+            """
+            params = (
+                symbol,
+                start_date.strftime("%Y-%m-%d %H:%M:%S"),
+                end_date.strftime("%Y-%m-%d %H:%M:%S"),
+            )
         else:
             # For other periods, group by interval
-            query = '''
+            query = """
                 SELECT timestamp, price
                 FROM price_history
                 WHERE stock_symbol = ?
@@ -185,9 +210,13 @@ def get_stock_chart_data(symbol, period):
                 AND substr(timestamp, 12, 8) >= '09:30:00' AND substr(timestamp, 12, 8) <= '16:00:00'
                 GROUP BY strftime('%s', timestamp) / (? * 60)
                 ORDER BY timestamp ASC
-            '''
-            params = (symbol, start_date.strftime('%Y-%m-%d %H:%M:%S'),
-                     end_date.strftime('%Y-%m-%d %H:%M:%S'), interval)
+            """
+            params = (
+                symbol,
+                start_date.strftime("%Y-%m-%d %H:%M:%S"),
+                end_date.strftime("%Y-%m-%d %H:%M:%S"),
+                interval,
+            )
 
     # Execute query and fetch data
     cursor.execute(query, params)
@@ -196,152 +225,169 @@ def get_stock_chart_data(symbol, period):
 
     # Handle no data case
     if not chart_data:
-        return json.dumps({
-            'data': [],
-            'layout': {'title': f'No data available for {symbol}'}
-        })
+        return json.dumps(
+            {"data": [], "layout": {"title": f"No data available for {symbol}"}}
+        )
 
     # Create Plotly trace
     trace = go.Scatter(
         x=[row[0] for row in chart_data],
         y=[row[1] for row in chart_data],
-        mode='lines',
-        name=symbol
+        mode="lines",
+        name=symbol,
     )
 
     # Configure chart layout
-    if period == '1day' and current_time >= market_open and current_time <= market_close:
+    if (
+        period == "1day"
+        and current_time >= market_open
+        and current_time <= market_close
+    ):
         layout = go.Layout(
-            title=f'{symbol} Stock Price',
+            title=f"{symbol} Stock Price",
             xaxis={
-                'title': 'Timestamp',
-                'type': 'date',
-                'range': [
-                    now.strftime('%Y-%m-%d') + ' 09:30:00',
-                    now.strftime('%Y-%m-%d') + ' 16:00:00'
+                "title": "Timestamp",
+                "type": "date",
+                "range": [
+                    now.strftime("%Y-%m-%d") + " 09:30:00",
+                    now.strftime("%Y-%m-%d") + " 16:00:00",
                 ],
-                'showticklabels': False,
-                'gridcolor': 'rgba(0,0,0,0)'
-             },
-            yaxis={'title': 'Price',
-                   'gridcolor': 'rgba(0,0,0,0)'
-             },
-            template='plotly_white'
+                "showticklabels": False,
+                "gridcolor": "rgba(0,0,0,0)",
+            },
+            yaxis={"title": "Price", "gridcolor": "rgba(0,0,0,0)"},
+            template="plotly_white",
         )
     else:
         layout = go.Layout(
-            title=f'{symbol} Stock Price',
+            title=f"{symbol} Stock Price",
             xaxis={
-                'title': 'Timestamp',
-                'type': 'category',
-                'showticklabels': False,
-                'gridcolor': 'rgba(0,0,0,0)'
-             },
-            yaxis={'title': 'Price',
-                   'gridcolor': 'rgba(0,0,0,0)'
-             },
-            template='plotly_white',
+                "title": "Timestamp",
+                "type": "category",
+                "showticklabels": False,
+                "gridcolor": "rgba(0,0,0,0)",
+            },
+            yaxis={"title": "Price", "gridcolor": "rgba(0,0,0,0)"},
+            template="plotly_white",
         )
 
     # Return JSON-encoded chart configuration
     fig = go.Figure(data=[trace], layout=layout)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
+
 def get_current_stock_data(symbol):
     connection, cursor = create_connection()
-    cursor.execute('''SELECT * FROM stocks_current WHERE stock_symbol = ?''', (symbol, ))
+    cursor.execute("""SELECT * FROM stocks_current WHERE stock_symbol = ?""", (symbol,))
     current_stock_data = cursor.fetchone()
     connection.close()
     return current_stock_data
 
-@app.route('/', methods=['GET', 'POST'])
+
+@app.route("/", methods=["GET", "POST"])
 def index():
     """Handle home page requests"""
-    if request.method == 'POST':
-        symbol = request.form.get('symbol', '').upper()
+    if request.method == "POST":
+        symbol = request.form.get("symbol", "").upper()
         if symbol:
-            return redirect(url_for('stock_detail', symbol=symbol))
-    return render_template('index.html')
+            return redirect(url_for("stock_detail", symbol=symbol))
+    return render_template("index.html")
 
-@app.route('/stock/<symbol>', methods=['GET', 'POST'])
+
+@app.route("/stock/<symbol>", methods=["GET", "POST"])
 def stock_detail(symbol):
     """
     Display detailed stock information and chart
-    
+
     Args:
         symbol: Stock ticker symbol
     """
-    period = request.args.get('period', '1mo')  # Default to 1 month view
-    
+    period = request.args.get("period", "1mo")  # Default to 1 month view
+
     # Generate chart data
     stock_chart_json = get_stock_chart_data(symbol, period)
-    
+
     current_stock_data = get_current_stock_data(symbol)
 
     user_shares, portfolio = None, None
 
     if current_user.is_authenticated:
         connection, cursor = create_connection()
-        cursor.execute('''SELECT shares FROM portfolios where user_id = ? and stock_symbol = ?''',(current_user.id, symbol))
+        cursor.execute(
+            """SELECT shares FROM portfolios where user_id = ? and stock_symbol = ?""",
+            (current_user.id, symbol),
+        )
         portfolio = cursor.fetchone()
-        
+
         if portfolio:
             user_shares = portfolio[0]
-        
+
         connection.close()
-    
-    if request.method =='POST':
-        transaction_type = request.form.get('transaction_type')
+
+    if request.method == "POST":
+        transaction_type = request.form.get("transaction_type")
 
         try:
-            shares = int(request.form.get('shares'))
+            shares = int(request.form.get("shares"))
             if shares < 1:
                 flash("You must buy at least 1 share.")
-                return redirect(url_for('stock_detail', symbol=symbol))
+                return redirect(url_for("stock_detail", symbol=symbol))
         except (TypeError, ValueError):
             flash("Invalid number of shares.")
-            return redirect(url_for('stock_detail', symbol=symbol))
-        
-        process_transaction(current_user.id, symbol, transaction_type, shares, current_stock_data[4])
-        return redirect(url_for('portfolio'))
+            return redirect(url_for("stock_detail", symbol=symbol))
 
-    return render_template('stock.html', 
-                         user_shares=user_shares,
-                         symbol=symbol, 
-                         period=period,
-                         stock_chart_json=stock_chart_json,
-                         current_stock_data=current_stock_data)
+        process_transaction(
+            current_user.id, symbol, transaction_type, shares, current_stock_data[4]
+        )
+        return redirect(url_for("portfolio"))
 
-@app.route('/portfolio')
+    return render_template(
+        "stock.html",
+        user_shares=user_shares,
+        symbol=symbol,
+        period=period,
+        stock_chart_json=stock_chart_json,
+        current_stock_data=current_stock_data,
+    )
+
+
+@app.route("/portfolio")
 @login_required
 def portfolio():
     connection, cursor = create_connection()
-    cursor.execute('''SELECT * FROM portfolios WHERE user_id = ? ORDER BY stock_symbol ASC''', (current_user.id,))
+    cursor.execute(
+        """SELECT * FROM portfolios WHERE user_id = ? ORDER BY stock_symbol ASC""",
+        (current_user.id,),
+    )
     portfolio_data = cursor.fetchall()
     connection.close()
 
-    return render_template('portfolio.html', portfolio_data=portfolio_data)
+    return render_template("portfolio.html", portfolio_data=portfolio_data)
+
 
 def refresh_stock_data():
     """Update stock data for tracked symbols"""
     # List of tracked stocks (limited to 20 on lowest paid API tier))
-    tracked_symbols = ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'WMT']
+    tracked_symbols = ["TSLA", "AAPL", "NVDA", "MSFT", "WMT"]
     update_current_month_data(tracked_symbols)
     update_daily_price_history(tracked_symbols)
     update_current_stock_data(tracked_symbols)
     update_all_portfolios()
 
+
 if __name__ == "__main__":
     # Initial data update
     refresh_stock_data()
-    
+
     # Configure scheduler for periodic updates
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=refresh_stock_data, 
-                     trigger="interval", 
-                     seconds=60,  # Update every minute
-                     misfire_grace_time=30)
+    scheduler.add_job(
+        func=refresh_stock_data,
+        trigger="interval",
+        seconds=60,  # Update every minute
+        misfire_grace_time=30,
+    )
     scheduler.start()
-    
+
     # Start Flask application
     app.run(debug=True)
