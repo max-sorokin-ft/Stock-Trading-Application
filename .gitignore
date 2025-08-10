@@ -17,3 +17,5 @@ __pycache__/
 *.json
 
 *.vscode
+
+*.Projects.code-workspace
